@@ -1,6 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { dummyUserData, dummyChats } from "../assets/assets"; // ✅ import dummyChats
+import axios from 'axios';
+import toast from "react-hot-toast";
+
+axios.defaults.baseURL = import.meta.env.VITE_SERVER_URL;
 
 const AppContext = createContext();
 
@@ -10,14 +14,88 @@ export const AppContextProvider = ({ children }) => {
   const [chats, setChats] = useState([]); // ✅ start with []
   const [selectedChat, setSelectedChat] = useState(null);
   const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
+  const [token, setToken] = useState(localStorage.getItem('token') || null)
+  const [loadingUser, setLoadingUser] = useState(true)
 
   const fetchUser = async () => {
-    setUser(dummyUserData);
-  };
+    try{
+      await axios.get('/api/user/data', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+        if(data.success){
+          setUser(data.user)
+        } else{
+          toast.error(data.message);
+        }
+    } catch (error) {
+  toast.error(
+    error.response?.data?.message ||
+    error.message ||
+    "Something went wrong"
+  );
+}
+ finally{
+      setLoadingUser(false)
+    }
+  }
+
+
+
+
+
+
+  const createNewChat = async () => {
+    try{
+      if(!user) return toast('Login to create a new chat')
+        navigate('/')
+     await axios.get('/api/user/create', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+      await fetchUsersChats()
+    } catch (error) {
+  toast.error(
+    error.response?.data?.message ||
+    error.message ||
+    "Something went wrong"
+  );
+}
+
+  }
 
   const fetchUsersChats = async () => {
-    setChats(dummyChats); // ✅ dummyChats should be defined/imported
-    setSelectedChat(dummyChats[0]);
+    try{
+      await axios.get('/api/user/data', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+
+        if(data.success){
+          setChats(data.chats)
+          // If the user has no chats, create one
+         if (data.chats.length === 0) {
+  await axios.get('/api/chat/create', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  const updated = await axios.get('/api/chat/get', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  setChats(updated.data.chats);
+  setSelectedChat(updated.data.chats[0] || null);
+}
+
+        } else{
+          toast.error(data.message)
+        }
+    } catch (error) {
+  toast.error(
+    error.response?.data?.message ||
+    error.message ||
+    "Something went wrong"
+  );
+}
+
+
   };
 
   useEffect(() => {
@@ -39,8 +117,14 @@ export const AppContextProvider = ({ children }) => {
   }, [user]);
 
   useEffect(() => {
-    fetchUser();
-  }, []);
+    if(token){
+      fetchUser()
+    } else{
+      setUser(null)
+      setLoadingUser(false)
+    }
+    
+  }, [token]);
 
   const value = {
     navigate,
@@ -52,7 +136,13 @@ export const AppContextProvider = ({ children }) => {
     selectedChat,
     setSelectedChat,
     theme,
-    setTheme // ✅ pass setTheme so you can toggle from UI
+    setTheme, // ✅ pass setTheme so you can toggle from UI
+    createNewChat,
+    loadingUser,
+    fetchUsersChats,
+    token,
+    setToken,
+    axios
   }
 
   return (
